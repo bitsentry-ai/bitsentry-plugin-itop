@@ -1,17 +1,18 @@
 {
   "name": "@bitsentry/plugin-itop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
-  "description": "itop CRUD actions for BitSentry Desktop and Dashboard",
+  "description": "iTop object CRUD and lifecycle actions for BitSentry Desktop and Dashboard",
   "main": "./dist/plugin.js",
   "types": "./dist/plugin.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc6 -p tsconfig.json",
+    "build": "tsc6 -p tsconfig.json && node scripts/build-artifact.mjs",
     "typecheck": "tsc6 -p tsconfig.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src scripts",
+    "debug": "node scripts/debug.mjs"
   },
   "devDependencies": {
     "@bitsentry/plugin-sdk": "0.1.0",

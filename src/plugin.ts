@@ -96,7 +96,7 @@ async function execute(context: DesktopPluginCodeActionContext, operation: strin
   const url = endpoint(context.auth.baseUrl);
   if (context.actionId === "get_object") integer(context.input.id, "id");
   const body = parameters(context.input, operation);
-  const form = new URLSearchParams({ version: "1.3", json_data: JSON.stringify(body) });
+  const form = new URLSearchParams({ version: "1.4", json_data: JSON.stringify(body) });
   if (context.auth.authToken !== undefined) {
     form.set("auth_token", text(context.auth.authToken, "authToken"));
   } else {
@@ -118,6 +118,9 @@ async function execute(context: DesktopPluginCodeActionContext, operation: strin
   const payload = record(await response.json(), "iTop response");
   if (payload.code !== 0) return { ok: false, status: 502, summary: "iTop reported an API error", data: { code: payload.code } };
   const objects = payload.objects == null ? {} : record(payload.objects, "iTop objects");
+  if (context.actionId === "get_object" && Object.keys(objects).length === 0) {
+    return { ok: false, status: 404, summary: "iTop object was not found" };
+  }
   for (const value of Object.values(objects)) {
     const object = record(value, "iTop object");
     if (object.code !== 0) return { ok: false, status: 502, summary: "iTop reported an object error", data: { code: object.code } };
@@ -142,7 +145,7 @@ function action(id: string, title: string, operation: string, fields: DesktopPlu
 }
 
 export const plugin: DesktopCodePlugin = {
-  id: "itop", name: "iTop", version: "0.2.0", type: "data_source",
+  id: "itop", name: "iTop", version: "0.2.1", type: "data_source",
   description: "CRUD for iTop tickets, requests, and CMDB objects, with lifecycle transitions and related-object lookup.",
   auth: { fields: [
     field("baseUrl", "iTop instance URL (including installation subpath)", true),

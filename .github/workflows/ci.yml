@@ -16,3 +16,8 @@ jobs:
       - run: pnpm run build
       - run: pnpm run typecheck
       - run: pnpm run lint
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin
+          path: build/
+          if-no-files-found: error

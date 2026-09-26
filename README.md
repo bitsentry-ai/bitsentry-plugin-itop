@@ -1,107 +1,120 @@
-# iTop code plugin
+# iTop plugin
 
-Desktop CE/Pro and Dashboard share this artifact's action contract, not credentials
-or storage. Actions run on the invoking host and contact only the configured iTop
-instance. Dashboard's separate ticket-provider package handles persisted tickets
-and incoming webhooks.
+CRUD and lifecycle actions for iTop tickets, requests, and CMDB objects. Runs
+through the BitSentry SDK in Desktop or Dashboard, or the standalone debug CLI.
 
-## Standalone development
+## Build and SDK contract
 
-Requires Node.js 22.12+ and pnpm 10.32.1.
-
-```sh
-pnpm install --frozen-lockfile
-pnpm run build
-pnpm run typecheck
-pnpm run lint
-```
-
-The build emits `dist/plugin.js` and TypeScript declarations. The SDK is a
-build-time dependency; credentials are supplied by the invoking BitSentry host.
-Source publication does not publish a plugin artifact or update the plugin index.
-
-## BitSentry workspace installation
-
-When integrated into the BitSentry monorepo, from its root, `pnpm run build` builds both plugins and produces
-`apps/desktop-ce/build/plugins/itop.plugin.js`, `outline.plugin.js`, and `index.yaml`.
-Install into Desktop using the actual absolute path:
+Requires Node.js 22.12+ and pnpm 10.32.1. This repository owns its dependencies
+and `pnpm-lock.yaml`, including when checked out under Desktop CE.
 
 ```sh
-bitsentry plugin install itop --index-url /absolute/path/to/apps/desktop-ce/build/plugins/index.yaml
-bitsentry plugin install outline --index-url /absolute/path/to/apps/desktop-ce/build/plugins/index.yaml
+pnpm --ignore-workspace install --frozen-lockfile
+pnpm --ignore-workspace run build
+pnpm --ignore-workspace run typecheck
+pnpm --ignore-workspace run lint
 ```
 
-Dashboard uses the same index via `BITSENTRY_PLUGIN_INDEX_URL`; deploy the entire
-artifact directory together. The default cloud allowlist includes both plugins.
-If `BITSENTRY_CLOUD_PLUGIN_ALLOWLIST` is explicitly set, include `itop,outline`
-alongside existing names. Public publication has not been performed.
+The build validates the plugin against the published SDK schema, checks unique
+action/field IDs, CRUD coverage, write labels, and matching versions. It produces
+`build/itop.plugin.js`, `build/index.yaml`, `build/descriptor.json`, and
+`build/checksums.sha256`. CI uploads that directory as the `plugin` artifact.
 
-## Credentials
+The SDK contract is `actions[]` with declared fields, `riskLevel`, and `execute`.
+Both plugins use `create_*`, `get_*`, `update_*`, and `delete_*` action IDs
+for CRUD, plus list/search and provider-specific actions. The SDK does not
+require every integration to expose CRUD methods. Host results use
+`pluginId`, `actionId`, `ok`, `status`, `summary`, and optional `data`. Provider
+payloads stay inside `data`. No SDK change is required. A type-only compatibility
+declaration accepts optional cancellation/deadlines from newer hosts while
+remaining compatible with the published SDK 0.1.0.
 
-Set the host environment's `ITOP_ALLOWED_BASE_URLS` to the exact HTTPS installation
-URL, for example `https://itop.example.com/itop` (comma-separated for multiple
-instances). Provide that URL in `auth.baseUrl`, and either `auth.authToken` or
-`auth.username` plus `auth.password`. Token authentication takes precedence.
-Keep credentials in Desktop's secret store or Dashboard's encrypted plugin auth.
-No credentials are embedded in the artifact. Redirects are rejected; requests
-honor cancellation/deadlines and time out after at most 30 seconds.
+## Install in BitSentry
+
+```sh
+bitsentry plugin install itop --index-url /absolute/path/to/this-repository/build/index.yaml
+bitsentry plugin info itop --json
+```
+
+Desktop CE's build orchestrates an isolated frozen install/build for this
+submodule; it does not add these dependencies to CE's lockfile. The combined
+Desktop artifact index remains at `apps/desktop-ce/build/plugins/index.yaml`.
+Dashboard can use that index via `BITSENTRY_PLUGIN_INDEX_URL`; include `itop`
+in an explicitly configured `BITSENTRY_CLOUD_PLUGIN_ALLOWLIST`.
+Desktop and Dashboard resolve their own credentials. No Prisma migration is
+needed to install or execute this plugin. Dashboard webhook receivers are a
+separate backend feature. Building does not update the public plugin catalog.
+
+## Debug without the Desktop app
+
+After building, list action IDs, fields, and defaults without connecting:
+
+```sh
+pnpm --ignore-workspace run debug
+```
+
+Create a credentials file named `auth.local.json`, restrict its permissions, and
+set `BITSENTRY_PLUGIN_AUTH_FILE` to its absolute path. `*.local.json` and `.env*`
+are ignored by Git. Never commit real credentials. The debug command reads auth
+from the file; it does not put credentials in command-line arguments.
+
+Auth file shape:
+
+```json
+{"baseUrl":"https://itop.example.com/itop","authToken":"YOUR_TOKEN"}
+```
+
+Alternatively use `username` and `password`; a supplied token takes precedence.
+Set `ITOP_ALLOWED_BASE_URLS` on the invoking host to the exact HTTPS installation
+URL (comma-separated for multiple allowed instances). Redirects are rejected.
+
+```sh
+export ITOP_ALLOWED_BASE_URLS=https://itop.example.com/itop
+export BITSENTRY_PLUGIN_AUTH_FILE=/absolute/path/to/auth.local.json
+pnpm --ignore-workspace run debug --action list_operations --show-data
+pnpm --ignore-workspace run debug --action get_object --input read.local.json --show-data
+```
+
+Example `read.local.json`: `{"class":"UserRequest","id":123,"outputFields":"id,ref,title,status"}`.
+Use `--show-data` to include provider results; otherwise output contains only the
+SDK summary/status. Results may contain internal ticket content. Writes require
+`--confirm-write` in this debug CLI, in addition to action-specific confirmations.
 
 ## Actions
 
-| Action | Inputs | Purpose |
+| Action | Main inputs | Risk |
 | --- | --- | --- |
-| `list_operations` | none | Discover operations on the installed server |
-| `create_object` | `class`, `fields` | Create a ticket, request, or other object |
-| `get_object` | `class`, numeric `id` | Read one object |
-| `list_objects` | `class`, optional OQL `query`, `limit`, `page` | Search/read a page |
-| `update_object` | `class`, numeric `id`, `fields` | Modify attributes |
-| `delete_object` | `class`, numeric `id`, `simulate`, `confirmDelete` | Preview or execute deletion |
-| `apply_stimulus` | `class`, numeric `id`, `stimulus`, optional `fields` | Change lifecycle state |
-| `get_related` | `class`, numeric `id`, `relation`, `depth`, `direction` | Read related CMDB objects |
+| `list_operations` | none | read |
+| `get_object` | `class`, numeric `id`, optional `outputFields` | read |
+| `list_objects` | `class`, optional OQL `query`, `limit`, `page`, `outputFields` | read |
+| `get_related` | `class`, numeric `id`, optional `relation`, `depth`, `direction` | read |
+| `create_object` | `class`, `fields`, optional `outputFields`, `comment` | write |
+| `update_object` | `class`, numeric `id`, `fields`, optional `outputFields`, `comment` | write |
+| `apply_stimulus` | `class`, numeric `id`, `stimulus`, optional `fields`, `comment` | write |
+| `delete_object` | `class`, numeric `id`, `simulate`, `confirmDelete` | write |
 
-`class` defaults to `UserRequest`. Use `Incident` for incidents or another installed
-class (for example `Organization`, `Person`, `Server`, `DocumentFile`, `Attachment`).
-The generic `fields` JSON supports custom mandatory attributes, case logs, links,
-and API blob structures. There is no hard-coded client data model. Class rights
-and field validation remain enforced by iTop. Unsupported extensions and custom
-operations are not invented by this plugin.
+`class` defaults to `UserRequest`; use any class installed in the target model.
+`fields` is a JSON object supporting custom attributes and case-log structures.
+Create example: `{"class":"UserRequest","fields":{"org_id":12,"caller_id":34,"title":"Investigate service failures","description":"<p>Reported symptoms</p>"}}`.
+Supply real IDs and all fields required by the installed model.
 
-Read/create/update actions accept `outputFields` (default `*`); narrow it to avoid
-large attachments or linked sets. Mutations accept an audit `comment`. Search
-defaults to 25 objects, page 1; maximum page size is 100. Read pagination requires
-iTop 2.6.1+. API and per-object errors produce failed action results, even on HTTP
-200. Success returns the iTop envelope under `data`.
+Assignment/closing use `apply_stimulus` with the model's stimulus and required
+fields, rather than arbitrary status updates. Private/public notes use the
+case-log structures in `fields.private_log` / `fields.public_log`; public logs
+can notify customers. Custom stopwatch APIs are not implemented by generic CRUD.
 
-Deletion always addresses a single numeric ID. It defaults to `simulate: true`.
-Actual deletion requires both `simulate: false` and `confirmDelete: true`; inspect
-the preview for dependent objects first. All mutations are marked `write` for
-the host. The plugin itself never retries mutations. Disable runbook-level
-automatic retries for creation unless your workflow reconciles prior attempts;
-an HTTP timeout can occur after iTop has already created the object. The Dashboard
-creation webhook supplies its own durable event-ID duplicate protection.
+Deletion targets one numeric ID. It defaults to `simulate: true`; actual deletion
+requires `simulate: false` and `confirmDelete: true`. Inspect the preview first.
+Pagination defaults to 25 objects, page 1, and allows at most 100 per request.
+The plugin requests REST API 1.4 so pagination is supported; use an installation
+that supports it. Narrow `outputFields` (default `*`) to limit retrieved data.
 
-Example request creation (`create_object` input):
+Requests honor cancellation/deadlines and time out after at most 30 seconds.
+Mutations are never automatically retried: a timeout can follow a successful
+remote write. API/object failures return `ok: false` with their numeric error code;
+a missing `get_object` returns status 404. Check REST access, bulk permissions,
+required fields, and server logs when debugging failures.
 
-```json
-{
-  "class": "UserRequest",
-  "fields": {
-    "org_id": 12,
-    "caller_id": 34,
-    "title": "Investigate repeated service failures",
-    "description": "<p>Investigation context from the incident.</p>"
-  },
-  "outputFields": "id,ref,title,status"
-}
-```
-
-To assign the request, use `apply_stimulus` with its returned numeric ID,
-`stimulus: "ev_assign"`, and the client model's required `team_id`/`agent_id` fields.
-Do not treat arbitrary `status` assignments as lifecycle transitions. To append
-notes, pass the documented case-log structure in `fields.public_log` or
-`fields.private_log` to `update_object`.
-
-The service account needs REST access and appropriate class permissions. Field
-names, lifecycle stimuli, and installed classes depend on the client's modules.
-See the [official REST API](https://www.itophub.io/wiki/page?id=latest:advancedtopics:rest_json).
-No live client instance has been exercised by this change.
+See the [official iTop REST documentation](https://www.itophub.io/wiki/page?id=latest:advancedtopics:rest_json).
+Build validation confirms the SDK contract, not connectivity or compatibility
+with a particular customized iTop instance.
