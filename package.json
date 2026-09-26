@@ -1,0 +1,34 @@
+{
+  "name": "@bitsentry/plugin-itop",
+  "version": "0.2.0",
+  "private": true,
+  "description": "itop CRUD actions for BitSentry Desktop and Dashboard",
+  "main": "./dist/plugin.js",
+  "types": "./dist/plugin.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc6 -p tsconfig.json",
+    "typecheck": "tsc6 -p tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "@bitsentry/plugin-sdk": "0.1.0",
+    "@types/node": "^25.3.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.5.0",
+    "globals": "^17.6.0",
+    "typescript-eslint": "^8.63.0"
+  },
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bitsentry-ai/bitsentry-plugin-itop.git"
+  }
+}
