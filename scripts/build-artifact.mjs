@@ -4,7 +4,8 @@ import { createRequire } from "node:module";
 import { desktopCodePluginSchema, desktopPluginDescriptorSchema } from "@bitsentry/plugin-sdk";
 
 const require = createRequire(import.meta.url);
-const plugin = desktopCodePluginSchema.parse(require("../dist/plugin.js").plugin);
+const rawPlugin = require("../dist/plugin.js").plugin;
+const plugin = desktopCodePluginSchema.parse(rawPlugin);
 const metadata = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 if (plugin.version !== metadata.version) throw new Error("Plugin and package versions differ");
 const seen = new Set();
@@ -30,7 +31,7 @@ const artifact = await readFile(new URL("../dist/plugin.js", import.meta.url));
 const artifactName = `${plugin.id}.plugin.js`;
 await mkdir(new URL("../build/", import.meta.url), { recursive: true });
 await writeFile(new URL(`../build/${artifactName}`, import.meta.url), artifact);
-await writeFile(new URL("../build/descriptor.json", import.meta.url), JSON.stringify(descriptor, null, 2) + "\n");
+await writeFile(new URL("../build/descriptor.json", import.meta.url), JSON.stringify({ ...descriptor, metadata: rawPlugin.metadata }, null, 2) + "\n");
 await writeFile(new URL("../build/index.yaml", import.meta.url),
   `plugins:\n  ${plugin.id}:\n    description: ${JSON.stringify(plugin.description)}\n    artifactUrl: "./${artifactName}"\n`);
 await writeFile(new URL("../build/checksums.sha256", import.meta.url),
