@@ -7,7 +7,8 @@ import type {
 
 // Additive persistence contract while the new SDK release is pending. New hosts
 // validate this descriptor and handlers against their canonical SDK schemas.
-type DesktopCodePlugin = Omit<SdkCodePlugin, "metadata"> & {
+type DesktopCodePlugin = Omit<SdkCodePlugin, "metadata" | "auth"> & {
+  auth: SdkCodePlugin["auth"] & { requiredSets?: string[][] };
   metadata: SdkCodePlugin["metadata"] & { persistence: {
     configVersion: number; destinationField: string;
     configFields: DesktopPluginFieldDefinition[];
@@ -182,7 +183,7 @@ export const plugin: DesktopCodePlugin = {
   },
   id: "itop", name: "iTop", version: "0.2.1", type: "data_source",
   description: "CRUD for iTop tickets, requests, and CMDB objects, with lifecycle transitions and related-object lookup.",
-  auth: { fields: [
+  auth: { requiredSets: [["authToken"], ["username", "password"]], fields: [
     field("baseUrl", "Legacy runbook instance URL (named connections use configuration)"),
     { ...field("authToken", "iTop application/personal token"), secret: true },
     field("username", "Username (when not using a token)"),

@@ -31,7 +31,7 @@ const artifact = await readFile(new URL("../dist/plugin.js", import.meta.url));
 const artifactName = `${plugin.id}.plugin.js`;
 await mkdir(new URL("../build/", import.meta.url), { recursive: true });
 await writeFile(new URL(`../build/${artifactName}`, import.meta.url), artifact);
-await writeFile(new URL("../build/descriptor.json", import.meta.url), JSON.stringify({ ...descriptor, metadata: rawPlugin.metadata }, null, 2) + "\n");
+await writeFile(new URL("../build/descriptor.json", import.meta.url), JSON.stringify({ ...descriptor, metadata: rawPlugin.metadata, auth: rawPlugin.auth }, null, 2) + "\n");
 await writeFile(new URL("../build/index.yaml", import.meta.url),
   `plugins:\n  ${plugin.id}:\n    description: ${JSON.stringify(plugin.description)}\n    artifactUrl: "./${artifactName}"\n`);
 await writeFile(new URL("../build/checksums.sha256", import.meta.url),
