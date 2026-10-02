@@ -5,18 +5,24 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.12.0, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
       - run: pnpm run typecheck
       - run: pnpm run lint
-      - uses: actions/upload-artifact@v4
+      - run: pnpm run test
+      - if: matrix.node-version == '22'
+        uses: actions/upload-artifact@v4
         with:
           name: plugin
           path: build/

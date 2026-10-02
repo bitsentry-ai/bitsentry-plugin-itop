@@ -12,6 +12,7 @@
     "build": "tsc6 -p tsconfig.json && node scripts/build-artifact.mjs",
     "typecheck": "tsc6 -p tsconfig.json --noEmit",
     "lint": "eslint src scripts",
+    "test": "pnpm run build && node --test test/*.test.mjs",
     "debug": "node scripts/debug.mjs"
   },
   "devDependencies": {
