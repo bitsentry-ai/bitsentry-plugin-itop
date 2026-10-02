@@ -1,13 +1,30 @@
 import type {
-  DesktopCodePlugin,
+  DesktopCodePlugin as SdkCodePlugin,
   DesktopCodePluginAction,
   DesktopPluginCodeActionContext as SdkActionContext,
   DesktopPluginFieldDefinition,
 } from "@bitsentry/plugin-sdk";
 
+// Additive persistence contract while the new SDK release is pending. New hosts
+// validate this descriptor and handlers against their canonical SDK schemas.
+type DesktopCodePlugin = Omit<SdkCodePlugin, "metadata" | "auth"> & {
+  auth: SdkCodePlugin["auth"] & { requiredSets?: string[][] };
+  metadata: SdkCodePlugin["metadata"] & { persistence: {
+    configVersion: number; destinationField: string;
+    configFields: DesktopPluginFieldDefinition[];
+    resources: Array<{ type: string; stateVersion: number; readActionId: string }>;
+    eventChannels: string[];
+  } };
+  persistence: {
+    validateConfig(config: Record<string, unknown>): Record<string, unknown>;
+    validateResourceState(input: { resourceType: string; version: number; state: unknown }): unknown;
+  };
+};
+
 // SDK 0.1.0 predates the optional operation context supplied by newer hosts.
 // Keep the standalone package compatible with both host generations.
 type DesktopPluginCodeActionContext = SdkActionContext & {
+  config?: Record<string, unknown>;
   operation?: {
     signal?: AbortSignal;
     deadlineAt?: number;
@@ -93,7 +110,7 @@ function mutationParameters(input: Record<string, unknown>, operation: string): 
 }
 
 async function execute(context: DesktopPluginCodeActionContext, operation: string) {
-  const url = endpoint(context.auth.baseUrl);
+  const url = endpoint(context.config?.endpoint ?? context.auth.baseUrl);
   if (context.actionId === "get_object") integer(context.input.id, "id");
   const body = parameters(context.input, operation);
   const form = new URLSearchParams({ version: "1.4", json_data: JSON.stringify(body) });
@@ -145,10 +162,29 @@ function action(id: string, title: string, operation: string, fields: DesktopPlu
 }
 
 export const plugin: DesktopCodePlugin = {
+  metadata: { persistence: {
+    configVersion: 1,
+    destinationField: "endpoint",
+    configFields: [
+      { key: "endpoint", label: "Instance URL", type: "string", required: true },
+      { key: "ticketMapping", label: "Ticket fields and lifecycle mapping", type: "json", required: false },
+    ],
+    resources: [{ type: "ticket", stateVersion: 1, readActionId: "get_object" }],
+    eventChannels: [],
+  } },
+  persistence: {
+    validateConfig(config) {
+      return { ...config, endpoint: normalizeBase(config.endpoint) };
+    },
+    validateResourceState({ state }) {
+      if (state === null || typeof state !== "object" || Array.isArray(state)) throw new Error("Resource state must be an object");
+      return state;
+    },
+  },
   id: "itop", name: "iTop", version: "0.2.1", type: "data_source",
   description: "CRUD for iTop tickets, requests, and CMDB objects, with lifecycle transitions and related-object lookup.",
-  auth: { fields: [
-    field("baseUrl", "iTop instance URL (including installation subpath)", true),
+  auth: { requiredSets: [["authToken"], ["username", "password"]], fields: [
+    field("baseUrl", "Legacy runbook instance URL (named connections use configuration)"),
     { ...field("authToken", "iTop application/personal token"), secret: true },
     field("username", "Username (when not using a token)"),
     { ...field("password", "Password (when not using a token)"), secret: true },
