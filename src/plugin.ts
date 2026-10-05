@@ -181,7 +181,7 @@ export const plugin: DesktopCodePlugin = {
       return state;
     },
   },
-  id: "itop", name: "iTop", version: "0.2.1", type: "data_source",
+  id: "itop", name: "iTop", version: "0.2.2", type: "data_source",
   description: "CRUD for iTop tickets, requests, and CMDB objects, with lifecycle transitions and related-object lookup.",
   auth: { requiredSets: [["authToken"], ["username", "password"]], fields: [
     field("baseUrl", "Legacy runbook instance URL (named connections use configuration)"),
