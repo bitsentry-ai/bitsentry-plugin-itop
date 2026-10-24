@@ -13,7 +13,8 @@
     "typecheck": "tsc6 -p tsconfig.json --noEmit",
     "lint": "eslint src scripts",
     "test": "pnpm run build && node --test test/*.test.mjs",
-    "debug": "node scripts/debug.mjs"
+    "debug": "node scripts/debug.mjs",
+    "knip": "knip"
   },
   "devDependencies": {
     "@bitsentry/plugin-sdk": "0.1.0",
@@ -22,7 +23,8 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.5.0",
     "globals": "^17.6.0",
-    "typescript-eslint": "^8.63.0"
+    "typescript-eslint": "^8.63.0",
+    "knip": "6.42.1"
   },
   "packageManager": "pnpm@10.32.1",
   "engines": {
