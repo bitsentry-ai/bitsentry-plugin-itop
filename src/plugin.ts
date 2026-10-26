@@ -109,26 +109,36 @@ function mutationParameters(input: Record<string, unknown>, operation: string): 
   return body;
 }
 
+function setCredentials(form: URLSearchParams, auth: DesktopPluginCodeActionContext["auth"]): void {
+  if (auth.authToken !== undefined) {
+    form.set("auth_token", text(auth.authToken, "authToken"));
+    return;
+  }
+  form.set("auth_user", text(auth.username, "username"));
+  // Passwords can contain leading/trailing spaces.
+  const password = auth.password;
+  if (typeof password !== "string" || password.length === 0) throw new Error("password is required");
+  form.set("auth_pwd", password);
+}
+
+/** Aborts at the operation deadline, at most 30 seconds away, or when the operation is cancelled. */
+function operationSignal(operation: DesktopPluginCodeActionContext["operation"]): AbortSignal {
+  const remaining = Math.min(30_000, (operation?.deadlineAt ?? Date.now() + 30_000) - Date.now());
+  if (!Number.isFinite(remaining) || remaining <= 0) throw new Error("iTop operation deadline exceeded");
+  const signals = [AbortSignal.timeout(Math.ceil(remaining))];
+  if (operation?.signal) signals.push(operation.signal);
+  return AbortSignal.any(signals);
+}
+
 async function execute(context: DesktopPluginCodeActionContext, operation: string) {
   const url = endpoint(context.config?.endpoint ?? context.auth.baseUrl);
   if (context.actionId === "get_object") integer(context.input.id, "id");
   const body = parameters(context.input, operation);
   const form = new URLSearchParams({ version: "1.4", json_data: JSON.stringify(body) });
-  if (context.auth.authToken !== undefined) {
-    form.set("auth_token", text(context.auth.authToken, "authToken"));
-  } else {
-    form.set("auth_user", text(context.auth.username, "username"));
-    // Passwords can contain leading/trailing spaces.
-    const password = context.auth.password;
-    if (typeof password !== "string" || password.length === 0) throw new Error("password is required");
-    form.set("auth_pwd", password);
-  }
-  const remaining = Math.min(30_000, (context.operation?.deadlineAt ?? Date.now() + 30_000) - Date.now());
-  if (!Number.isFinite(remaining) || remaining <= 0) throw new Error("iTop operation deadline exceeded");
-  const signals = [AbortSignal.timeout(Math.ceil(remaining))];
-  if (context.operation?.signal) signals.push(context.operation.signal);
+  setCredentials(form, context.auth);
+  const signal = operationSignal(context.operation);
   const response = await fetch(url, {
-    method: "POST", body: form, redirect: "error", signal: AbortSignal.any(signals),
+    method: "POST", body: form, redirect: "error", signal,
     headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
   });
   if (!response.ok) return { ok: false, status: response.status, summary: `iTop failed (HTTP ${String(response.status)})` };
