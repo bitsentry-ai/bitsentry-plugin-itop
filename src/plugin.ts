@@ -109,20 +109,24 @@ function mutationParameters(input: Record<string, unknown>, operation: string): 
   return body;
 }
 
+function setCredentials(form: URLSearchParams, auth: DesktopPluginCodeActionContext["auth"]): void {
+  if (auth.authToken !== undefined) {
+    form.set("auth_token", text(auth.authToken, "authToken"));
+    return;
+  }
+  form.set("auth_user", text(auth.username, "username"));
+  // Passwords can contain leading/trailing spaces.
+  const password = auth.password;
+  if (typeof password !== "string" || password.length === 0) throw new Error("password is required");
+  form.set("auth_pwd", password);
+}
+
 async function execute(context: DesktopPluginCodeActionContext, operation: string) {
   const url = endpoint(context.config?.endpoint ?? context.auth.baseUrl);
   if (context.actionId === "get_object") integer(context.input.id, "id");
   const body = parameters(context.input, operation);
   const form = new URLSearchParams({ version: "1.4", json_data: JSON.stringify(body) });
-  if (context.auth.authToken !== undefined) {
-    form.set("auth_token", text(context.auth.authToken, "authToken"));
-  } else {
-    form.set("auth_user", text(context.auth.username, "username"));
-    // Passwords can contain leading/trailing spaces.
-    const password = context.auth.password;
-    if (typeof password !== "string" || password.length === 0) throw new Error("password is required");
-    form.set("auth_pwd", password);
-  }
+  setCredentials(form, context.auth);
   const remaining = Math.min(30_000, (context.operation?.deadlineAt ?? Date.now() + 30_000) - Date.now());
   if (!Number.isFinite(remaining) || remaining <= 0) throw new Error("iTop operation deadline exceeded");
   const signals = [AbortSignal.timeout(Math.ceil(remaining))];
