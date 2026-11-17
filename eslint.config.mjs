@@ -10,12 +10,7 @@ export default tseslint.config(
   {
     files: ["src/**/*.ts", "scripts/**/*.mjs"],
     languageOptions: { globals: globals.node },
-    rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        { varsIgnorePattern: "^_", argsIgnorePattern: "^_" },
-      ],
-    },
+    rules: { "@typescript-eslint/no-unused-vars": ["error", { varsIgnorePattern: "^_", argsIgnorePattern: "^_" }] },
   },
   ...readabilityConfigs({ files: ["src/**/*.ts"] }),
 );
